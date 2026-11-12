@@ -1,0 +1,29 @@
+name: release-gate
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # release_gate.py 按同级目录查找两个子扫描器。CI 里只 checkout 本仓库，
+      # 所以拉到父目录复现本地结构；放在工作区内会被密钥闸扫到 fixture。
+      - name: Fetch sibling scanners
+        run: |
+          git clone --depth 1 https://github.com/highLuo/toksentry.git ../toksentry
+          git clone --depth 1 https://github.com/highLuo/fin-compliance.git ../fin-compliance
+
+      - name: Self-test
+        run: python release_gate.py --self-test
+
+      - name: 发布前双闸扫描
+        # 内容闸只扫干净样本集；README 里讲规则时引用的违规例句不该算命中
+        run: python release_gate.py --code-dir . --content-dir samples/clean/ --fail-on high
